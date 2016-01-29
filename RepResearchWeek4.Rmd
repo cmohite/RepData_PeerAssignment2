@@ -1,0 +1,260 @@
+---
+title: "REPRODUCIBLE RESEARCH - Peer Review Assignment 2"
+author: "Chetan Mohite"
+date: "Monday, January 25, 2016"
+output: html_document
+---
+
+## Title:
+Impact of Various Severe Weather Events on the U.S. Economy and Population Health.
+
+## Synopsis:
+This analysis involves exploring **the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database** to find out
+weather events that are most harmful with respect to population health and have greatest economic consequences. This database 
+tracks characteristics of major storms and weather events in the United States from 1950 -2011, including when and where they 
+occur, as well as estimates of any fatalities, injuries, property damage, & crop damage. From the given data and using R, the 
+values of human fatalities & injuries have been used to plot & identify the impact of various weather events on the U.S. population health. Similarly, the values of property damages and crop damages have been used to plot & identify the impact of various weather events on the U.S. economy. From this analysis, it's found that the Excessive heat & Tornadoes have most impact on the population health, whereas Flood, Drought, and Hurricane/Typhoon have greatest impact on the U.S. Economy.
+
+## Required Settings & Packages Installation
+
+```{r}
+echo=TRUE  # Making code visible
+
+# Please ensure below packages before running this script
+# downlaoder, dplyr, ggplot2, knitr, htmltools, caTools, rmarkdown
+
+# Load downloader package
+library(downloader)
+
+# Load package
+library(dplyr)
+
+# Load ggplot2 package
+library(ggplot2)
+
+# Load other required packages
+library(knitr)
+library(htmltools)
+library(caTools)
+library(rmarkdown)
+require(gridExtra)
+```
+
+## Data Processing
+
+* Download & Load the Storm Data into R.
+
+```{r}
+
+setwd("C:\\Chetan-Study\\Coursera\\ReproducibleResearch\\Week2")
+
+# Storm Data URL
+url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+
+# Dowload Storm Data file into project's data directory
+if (!dir.exists("data")) {
+        dir.create("data")
+}
+
+if (!file.exists(".\\data\\stormdata.bz2")) {
+        download(url, dest=".\\data\\stormdata.bz2", mode="wb")         
+}
+
+stormdata <- read.csv(".\\data\\stormdata.bz2")
+````
+
+* Look at the summaries of data loaded into R.
+
+```{r}
+# Summaries
+head(stormdata)  # Values of the first 5 observations. 
+names(stormdata) # Variable names
+dim(stormdata)   # No of observations and columns per observation.
+````
+
+There are 902297 rows and 37 columns in downloaded storm data file for years starting from 1950 till 2011. 
+
+* Events tracked per year from 1950-2011. 
+
+```{r}
+
+# Let's look at the number of events tracked per year since 1950 till 2011.
+stormdata$year <- as.numeric(format(as.Date(stormdata$BGN_DATE, "%m/%d/%Y %H:%M:%S"),"%Y"))
+hist(as.numeric(stormdata$year), breaks=50)
+````
+
+In the earlier years of the database there are generally fewer events recorded, most likely due to a lack of good records. Refer to above histogram, number of events tracked per year have increased significantly since 1995. So, the data collected from 1995 to 2011 will give us the right picture about the impact of various weather events. This is the period chosen here for this data analysis. 
+
+* Processing Data:
+
+1. Data Filtering & Group by events
+    
+```{r cache=TRUE}
+stormdata$EVTYPE = toupper(stormdata$EVTYPE)
+
+# Filter StormData to get events tracked from year 1995.
+filter_by_year <- filter(stormdata, year >= 1995)
+
+# Group by Event Types 
+by_events <- group_by(filter_by_year, EVTYPE)
+````
+
+2. Impact of weather events on Public Health
+
+*2a. Finding out total **no. of fatalities** per event for data from 1995 till 2011.*
+
+```{r cache=TRUE}
+# Variable that indicate fatalities caused by events is "FATALITIES".
+
+# Summarise - Total no. of fatalities per event since 1995.
+sum_by_events <- summarise(by_events, TOTALFATALITIES=sum(FATALITIES))
+
+# Order the result by descending order of total no.of fatalities
+stormdata_fat <- arrange(sum_by_events, desc(TOTALFATALITIES))
+````
+
+*2b. Finding out total **no. of injuries** per event for data from 1995 till 2011.*
+
+```{r cache=TRUE}
+# Variable that indicate injuries caused by events is "INJURIES".
+
+# Summarise - Total no. of injuries per event since 1995
+sum_by_events <- summarise(by_events, TOTALINJURIES=sum(INJURIES))
+
+# Order the result by descending order of total no.of injuries
+stormdata_injuries <- arrange(sum_by_events, desc(TOTALINJURIES))
+
+````
+
+3. Impact of weather events on the U.S. Economy*
+
+*3a. Finding out total **property & corp damages** per event for data from 1995 till 2011.*
+
+```{r cache=TRUE}
+
+# Variables that indicate economic consequences caused by events are "PROPDMG" & "CROPDMG",
+# where CROPDMG # indicates corp damage and PROPDMG indicates property damage. 
+# The magnitudes of property & corp damages # are indicated by "PROPDMGEXP" & "CROPDMGEXP"
+# respectively. 
+
+# Get multiplication factors for property & crop damages.
+symbols <- c("", "-", "?", "+", "0", "1", "2", "3", "4", "5", "6", "7", "8", "b", "B", "h",
+             "H", "k", "K", "m", "M")
+factors <- c(0,0,0,0,0,1,2,3,4,5,6,7,8, 9,9,2,2,3,3,6,6)
+multiply_factor <- data.frame(symbols, factors)
+
+# Update values for PROPDMG & CROPDMG based on multiplication factors.
+stormdata$PROPDMG <- stormdata$PROPDMG * 10^multiply_factor[match(stormdata$PROPDMGEXP,
+                                                                  multiply_factor$symbol), 2]
+stormdata$CROPDMG <- stormdata$CROPDMG * 10^multiply_factor[match(stormdata$CROPDMGEXP,
+                                                                  multiply_factor$symbol), 2]
+
+# Total damages. 
+stormdata$TOTDMG <- stormdata$PROPDMG + stormdata$CROPDMG
+
+# Filter StormData to get events tracked from year 1995.
+filter_by_year <- filter(stormdata, year >= 1995)
+
+# Group by event types.
+by_events <- group_by(filter_by_year, EVTYPE)
+
+# Summarise - Total property damages per event since 1995.
+sum_by_events <- summarise(by_events, TOTALPROPDMG=sum(PROPDMG))
+
+# Order the result by descending order of total property damages.
+stormdata_propdmg <- arrange(sum_by_events, desc(TOTALPROPDMG))
+
+# Summarise - Total crop damages per event since 1995.
+sum_by_events <- summarise(by_events, TOTALCROPDMG=sum(CROPDMG))
+
+# Order the result by descending order of total crop damages.
+stormdata_cropdmg <- arrange(sum_by_events, desc(TOTALCROPDMG))
+
+# Summarise - Total (property + crop) damages per event since 1995.
+sum_by_events <- summarise(by_events, TOTALDMG=sum(TOTDMG))
+
+# Order the result by descending order of total damages.
+stormdata_dmg <- arrange(sum_by_events, desc(TOTALDMG))
+````
+
+## Results
+
+* Question 1: Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+
+****
+The list of first 25 weather events that have caused most of the **fatalities** in U.S. between 1995 & 2011 is as below:
+
+```{r}
+stormdata_fat_25 <- stormdata_fat[1:25,]
+stormdata_fat_25
+````
+
+The list of first 25 weather events that have caused most of the **injuries** in U.S. between 1995 & 2011 is as below:
+
+```{r}
+stormdata_injuries_25 <- stormdata_injuries[1:25,]
+stormdata_injuries_25
+````
+
+The graphical representation **(Events vs Total Fatalities & Events vs Total Injuries)** for first 25 events that have most impact on public health is below:
+
+```{r}
+plot1 <- ggplot(stormdata_fat_25, aes(x=reorder(EVTYPE,-TOTALFATALITIES), y=TOTALFATALITIES, 
+                                      fill=EVTYPE)) +
+        geom_bar(stat= "identity") +
+        theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) +
+        theme(legend.position = "none")
+
+plot2 <- ggplot(stormdata_injuries_25, aes(x=reorder(EVTYPE,-TOTALINJURIES), y=TOTALINJURIES, 
+                                           fill=EVTYPE)) +
+        geom_bar(stat= "identity") +
+        theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) +
+        theme(legend.position = "none")
+
+grid.arrange(plot1, plot2, ncol=2)
+````
+
+**Answer 1:** So, based on the above analysis, it's clear that **Excessive Heat & Tornadoes** have caused most fatalities & injuries 
+in the U.S. from 1995 to 2011.
+
+****
+
+* Question 2: Across the United States, which types of events have the greatest economic consequences?
+
+****
+The list of first 25 weather events that have caused most **property damages** in U.S. between 1995 & 2011 is as below:
+
+```{r}
+stormdata_propdmg_25 <- stormdata_propdmg[1:25,]
+stormdata_propdmg_25
+````
+
+The list of first 25 weather events that have caused most **crop damages** in U.S. between 1995 & 2011 is as below:
+
+````{r}
+stormdata_cropdmg_25 <- stormdata_cropdmg[1:25,]
+stormdata_cropdmg_25
+````
+
+The graphical representation **(Events vs Total Property Damages & Events Vs Total Crop Damages)** for first 25 events that have most impact on Economy is below:
+
+````{r}
+plot1 <- ggplot(stormdata_propdmg_25, aes(x=reorder(EVTYPE,-TOTALPROPDMG), y=TOTALPROPDMG, 
+                                          fill=EVTYPE)) +
+        geom_bar(stat= "identity") +
+        theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) +
+        theme(legend.position = "none")
+
+plot2 <- ggplot(stormdata_cropdmg_25, aes(x=reorder(EVTYPE,-TOTALCROPDMG), y=TOTALCROPDMG, 
+                                          fill=EVTYPE)) +
+        geom_bar(stat= "identity") +
+        theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) +
+        theme(legend.position = "none")
+
+grid.arrange(plot1, plot2, ncol=2)
+````
+
+
+**Answer 2:** So, based on the above analysis, it's clear that **flood & Hurricae/Typhoon** have caused most property damage while **drought & floods** have caused in the U.S. from 1995 to 2011.
+
+****
